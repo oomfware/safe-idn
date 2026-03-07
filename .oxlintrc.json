@@ -1,0 +1,6 @@
+{
+	"$schema": "https://unpkg.com/oxlint/configuration_schema.json",
+	"rules": {
+		"no-control-regex": "off"
+	}
+}
