@@ -15,11 +15,68 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = resolve(__dirname, '../src/data/confusables.ts');
 
-const URL = 'https://unicode.org/Public/security/latest/confusables.txt';
+const CONFUSABLES_URL = 'https://unicode.org/Public/security/latest/confusables.txt';
+
+// #region VLQ encoding
+
+// 92 safe printable ASCII chars for JS strings (33-126 minus " and \).
+// split into two halves of 46 for continuation/terminal signaling:
+//   indices 0-45: continuation digits (more bytes follow)
+//   indices 46-91: terminal digits (last byte of number)
+const VLQ_BASE = 46;
+
+const indexToChar = (i: number): string => {
+	let c = i + 33;
+	if (c >= 34) c++; // skip "
+	if (c >= 92) c++; // skip \
+	return String.fromCharCode(c);
+};
+
+// encode a non-negative integer as VLQ
+const encodeVlq = (val: number): string => {
+	if (val < VLQ_BASE) {
+		return indexToChar(val + VLQ_BASE); // terminal
+	}
+
+	// big-endian: collect digits, most significant first
+	const digits: number[] = [];
+	while (val >= VLQ_BASE) {
+		digits.push(val % VLQ_BASE);
+		val = Math.floor(val / VLQ_BASE);
+	}
+	digits.push(val);
+	digits.reverse();
+
+	let out = '';
+	for (let i = 0; i < digits.length - 1; i++) {
+		out += indexToChar(digits[i]); // continuation
+	}
+	out += indexToChar(digits[digits.length - 1] + VLQ_BASE); // terminal
+	return out;
+};
+
+// verify round-trip
+const decodeVlq = (str: string, pos: number): [number, number] => {
+	let val = 0;
+	let j = pos;
+	while (true) {
+		const c = str.charCodeAt(j++);
+		const idx = c - 33 - (c > 34 ? 1 : 0) - (c > 92 ? 1 : 0);
+		if (idx < VLQ_BASE) {
+			val = val * VLQ_BASE + idx;
+		} else {
+			val = val * VLQ_BASE + (idx - VLQ_BASE);
+			break;
+		}
+	}
+	return [val, j];
+};
+
+// #endregion
 
 async function main() {
-	console.log(`fetching ${URL}...`);
-	const resp = await fetch(URL);
+	console.log(`fetching ${CONFUSABLES_URL}...`);
+	const resp = await fetch(CONFUSABLES_URL);
 	if (!resp.ok) {
 		throw new Error(`fetch failed: ${resp.status} ${resp.statusText}`);
 	}
@@ -146,45 +203,96 @@ async function main() {
 	// sort by code point for deterministic output
 	const sorted = [...map.entries()].sort((a, b) => a[0] - b[0]);
 
-	// compact encoding: delta-encoded keys (base36) + pipe-delimited values.
-	// this is ~3x smaller than a Map constructor literal.
+	// filter to entries whose prototypes produce ASCII after stripping combining
+	// marks. the skeleton is only compared against ASCII top domain names via
+	// skeletonStripDiacritics, so entries that resolve to non-ASCII base
+	// characters are never useful. combining marks are stripped from values
+	// since skeletonStripDiacritics removes them anyway.
+	const combiningMarkRe = /\p{M}/gu;
+	const filtered = sorted
+		.map(([cp, val]): [number, string] => [cp, val.replace(combiningMarkRe, '')])
+		.filter(([, val]) => val.length > 0 && [...val].every((ch) => ch.codePointAt(0)! <= 0x7f));
+
+	// compact encoding: separator-free base-46 VLQ for delta-encoded keys,
+	// pipe-delimited values. 92 safe printable ASCII chars are split into
+	// continuation (0-45) and terminal (46-91) halves, encoding each delta
+	// as a variable-length quantity without needing separators between entries.
 	let prev = 0;
-	const deltas: string[] = [];
+	let keyStr = '';
 	const values: string[] = [];
-	for (const [cp, target] of sorted) {
-		deltas.push((cp - prev).toString(36));
-		prev = cp;
+	for (const [cp, target] of filtered) {
+		const delta = cp - prev;
+		keyStr += encodeVlq(delta - 1); // delta >= 1, encode delta-1
 		values.push(target);
+		prev = cp;
 	}
 
-	const deltaStr = deltas.join(',');
 	const valStr = values.join('|');
+
+	// verify round-trip
+	{
+		let p = 0;
+		let j = 0;
+		const testVals = valStr.split('|');
+		let vi = 0;
+		while (j < keyStr.length) {
+			const [val, nextJ] = decodeVlq(keyStr, j);
+			j = nextJ;
+			p += val + 1;
+			const expected = filtered[vi];
+			if (p !== expected[0]) {
+				throw new Error(`key mismatch at ${vi}: got ${p}, expected ${expected[0]}`);
+			}
+			if (testVals[vi] !== expected[1]) {
+				throw new Error(`value mismatch at ${vi}: got ${testVals[vi]}, expected ${expected[1]}`);
+			}
+			vi++;
+		}
+		if (vi !== filtered.length) {
+			throw new Error(`entry count mismatch: decoded ${vi}, expected ${filtered.length}`);
+		}
+		console.log(`round-trip verification passed`);
+	}
 
 	let code = '// generated from Unicode confusables.txt — do not edit manually.\n';
 	code += '// run `node --experimental-strip-types scripts/generate-confusables.ts` to regenerate.\n';
 	code += '//\n';
-	code += '// compact encoding: keys are delta-encoded in base36 (comma-separated),\n';
-	code += '// values are pipe-delimited. decoded at load time into a Map.\n\n';
+	code += '// compact encoding: keys are delta-encoded using separator-free base-46 VLQ,\n';
+	code += '// values are pipe-delimited. filtered to ASCII-only prototypes (combining\n';
+	code += '// marks stripped) since the skeleton is only compared against ASCII top\n';
+	code += '// domain names. decoded at load time into a Map.\n\n';
 
-	code += `const k = ${JSON.stringify(deltaStr)};\n`;
+	code += `const k = ${JSON.stringify(keyStr)};\n`;
 	code += `const v = ${JSON.stringify(valStr)};\n\n`;
 
 	code += `/** confusable character map: source code point → replacement string */\n`;
 	code += `export const confusableMap: Map<number, string> = /* #__PURE__ */ (() => {\n`;
-	code += `\tconst d = k.split(',');\n`;
 	code += `\tconst s = v.split('|');\n`;
 	code += `\tconst m = new Map<number, string>();\n`;
 	code += `\tlet p = 0;\n`;
-	code += `\tfor (let i = 0; i < d.length; i++) {\n`;
-	code += `\t\tp += parseInt(d[i], 36);\n`;
-	code += `\t\tm.set(p, s[i]);\n`;
+	code += `\tlet j = 0;\n`;
+	code += `\tlet i = 0;\n`;
+	code += `\twhile (j < k.length) {\n`;
+	code += `\t\tlet d = 0;\n`;
+	code += `\t\twhile (true) {\n`;
+	code += `\t\t\tconst c = k.charCodeAt(j++);\n`;
+	code += `\t\t\tconst x = c - 33 - (c > 34 ? 1 : 0) - (c > 92 ? 1 : 0);\n`;
+	code += `\t\t\tif (x < 46) {\n`;
+	code += `\t\t\t\td = d * 46 + x;\n`;
+	code += `\t\t\t} else {\n`;
+	code += `\t\t\t\td = d * 46 + x - 46;\n`;
+	code += `\t\t\t\tbreak;\n`;
+	code += `\t\t\t}\n`;
+	code += `\t\t}\n`;
+	code += `\t\tp += d + 1;\n`;
+	code += `\t\tm.set(p, s[i++]);\n`;
 	code += `\t}\n`;
 	code += `\treturn m;\n`;
 	code += `})();\n`;
 
 	writeFileSync(OUTPUT, code);
 	console.log(
-		`wrote ${sorted.length} entries (${deltaStr.length + valStr.length} bytes packed) to ${OUTPUT}`,
+		`wrote ${filtered.length} entries (${keyStr.length + valStr.length} bytes packed, from ${sorted.length} total) to ${OUTPUT}`,
 	);
 }
 
