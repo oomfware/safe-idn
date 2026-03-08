@@ -77,14 +77,51 @@ const digitLookalikes = new Set<number>([
 
 // #region context-sensitive character rules
 
-// CJK ideographs that look like slashes or simple strokes — blocked next to non-CJK
-const cjkSlashLike = new Set([0x4e36, 0x4e40, 0x4e41, 0x4e3f]);
+// CJK/Katakana chars that look like slashes or simple strokes — blocked when non-CJK
+// on BOTH sides (Chromium's dangerous_pattern: surrounded by non-Kana/Hira/Han)
+const cjkSlashLike = new Set([
+	0x30ce, // ノ (Katakana No)
+	0x30bd, // ソ (Katakana So)
+	0x30be, // ゾ (Katakana Zo)
+	0x30f3, // ン (Katakana N)
+	0x4e40, // 乀
+	0x4e41, // 乁
+	0x4e3f, // 丿
+]);
 
-// CJK ideographs/Bopomofo that look like letters/numbers — blocked next to non-CJK
+// CJK ideographs/Bopomofo that look like letters/numbers — blocked when non-CJK
+// on EITHER side (Chromium's dangerous_pattern: two separate alternatives)
 const cjkLetterLike = new Set([
-	0x4e00, 0x3127, 0x4e28, 0x4e5b, 0x4e03, 0x4e05, 0x4e06, 0x4e01, 0x4e29, 0x4e2b, 0x4e42, 0x5341, 0x3007,
-	0x3112, 0x311a, 0x311f, 0x3128, 0x3129, 0x3108, 0x31ba, 0x31b3, 0x5de5, 0x8ba0, 0x4e85, 0x4e8c, 0x4ea0,
-	0x5196, 0x5b80, 0x5ddb,
+	0x4e00,
+	0x3127,
+	0x4e28,
+	0x4e5b,
+	0x4e03,
+	0x4e05,
+	0x4e06,
+	0x4e01,
+	0x4e29,
+	0x4e2b,
+	0x4e42,
+	0x5341,
+	0x3007,
+	0x3112,
+	0x311a,
+	0x311f,
+	0x3128,
+	0x3129,
+	0x3108,
+	0x31ba,
+	0x31b3,
+	0x5de5,
+	0x8ba0,
+	0x4e85,
+	0x4e8c,
+	0x4ea0,
+	0x5196,
+	0x5b80,
+	0x5ddb,
+	0x4e36, // 丶 (also in Chromium's slash-like set, but either-side check dominates)
 ]);
 
 function isExtendedCjk(cp: number): boolean {
@@ -139,16 +176,25 @@ function isCjkCharNextToNonCjk(
 	codePoints: number[],
 	labelHasNonCjkLetter: boolean,
 ): boolean {
-	if (!cjkSlashLike.has(cp) && !cjkLetterLike.has(cp)) {
+	const isSlash = cjkSlashLike.has(cp);
+	const isLetter = cjkLetterLike.has(cp);
+	if (!isSlash && !isLetter) {
 		return false;
 	}
 
 	const prev = idx > 0 ? codePoints[idx - 1] : undefined;
 	const next = idx + 1 < codePoints.length ? codePoints[idx + 1] : undefined;
 
+	if (isSlash) {
+		// slash-like: only blocked when non-CJK on BOTH sides
+		// (matches Chromium: [non-CJK][slash][non-CJK])
+		const prevNonCjk = prev !== undefined && !isExtendedCjk(prev);
+		const nextNonCjk = next !== undefined && !isExtendedCjk(next);
+		return prevNonCjk && nextNonCjk;
+	}
+
+	// letter-like: blocked when non-CJK on EITHER side
 	if (labelHasNonCjkLetter) {
-		// when label has Latin/Cyrillic/etc letters, any non-CJK neighbor triggers
-		// (matches Chromium's dangerous_pattern which only runs for multi-script labels)
 		if (prev !== undefined && !isExtendedCjk(prev)) {
 			return true;
 		}
@@ -156,7 +202,6 @@ function isCjkCharNextToNonCjk(
 			return true;
 		}
 	} else {
-		// without non-CJK letters, only non-CJK LETTER neighbors trigger
 		if (prev !== undefined && !isExtendedCjk(prev) && isNonCjkLetter(prev)) {
 			return true;
 		}
@@ -200,25 +245,6 @@ function isInvalidKatakanaIteration(idx: number, codePoints: number[]): boolean 
 	}
 	const prevScript = getScriptByCodePoint(codePoints[idx - 1]);
 	return prevScript !== Script.Katakana;
-}
-
-// #endregion
-
-// #region Katakana No (U+30CE) context
-
-function isKatakanaNoUnsafe(idx: number, codePoints: number[]): boolean {
-	// ノ by itself in an all-CJK label is fine
-	// ノ is unsafe when it has a non-CJK EXISTING neighbor
-	const prev = idx > 0 ? codePoints[idx - 1] : undefined;
-	const next = idx + 1 < codePoints.length ? codePoints[idx + 1] : undefined;
-
-	if (prev !== undefined && !isExtendedCjk(prev)) {
-		return true;
-	}
-	if (next !== undefined && !isExtendedCjk(next)) {
-		return true;
-	}
-	return false;
 }
 
 // #endregion
@@ -449,18 +475,6 @@ function hasKanaConfusableMix(codePoints: number[]): boolean {
 
 // #endregion
 
-// #region Kana combining mark context
-
-function isKanaCombiningMarkSafe(cp: number, idx: number, codePoints: number[]): boolean {
-	if (idx === 0) {
-		return false;
-	}
-	const prevScript = getScriptByCodePoint(codePoints[idx - 1]);
-	return prevScript === Script.Hiragana || prevScript === Script.Katakana;
-}
-
-// #endregion
-
 // #region deviation characters
 
 // U+200C (ZWNJ) and U+200D (ZWJ) are deviation characters — always unsafe
@@ -591,12 +605,18 @@ function runSafetyChecks(
 		return { input, unicode, result: 'unsafe' };
 	}
 
-	// Kana combining marks (U+3099, U+309A) context check
-	for (let i = 0; i < codePoints.length; i++) {
-		const cp = codePoints[i];
-		if (cp === 0x3099 || cp === 0x309a) {
-			if (!isKanaCombiningMarkSafe(cp, i, codePoints)) {
-				return { input, unicode, result: 'unsafe' };
+	// Kana combining marks (U+3099, U+309A) — blocked in multi-script labels.
+	// in Chromium, single-script labels return early before dangerous_pattern runs,
+	// so \u3099|\u309A only triggers for multi-script labels.
+	{
+		const isSingleKana =
+			actualScripts.size <= 1 &&
+			(actualScripts.size === 0 || actualScripts.has(Script.Katakana) || actualScripts.has(Script.Hiragana));
+		if (!isSingleKana) {
+			for (const cp of codePoints) {
+				if (cp === 0x3099 || cp === 0x309a) {
+					return { input, unicode, result: 'unsafe' };
+				}
 			}
 		}
 	}
@@ -637,11 +657,6 @@ function runSafetyChecks(
 
 		// U+30FD, U+30FE (Katakana iteration marks)
 		if ((cp === 0x30fd || cp === 0x30fe) && isInvalidKatakanaIteration(i, codePoints)) {
-			return { input, unicode, result: 'unsafe' };
-		}
-
-		// Katakana Letter No (U+30CE) — unsafe if not enclosed by CJK
-		if (cp === 0x30ce && isKatakanaNoUnsafe(i, codePoints)) {
 			return { input, unicode, result: 'unsafe' };
 		}
 

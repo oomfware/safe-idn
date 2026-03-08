@@ -2,10 +2,6 @@ import { Script, getScript } from './scripts.ts';
 
 // #region dangerous patterns
 
-// Katakana-Hiragana combining marks
-const COMBINING_KATAKANA_HIRAGANA_VOICED = 0x3099;
-const COMBINING_KATAKANA_HIRAGANA_SEMI_VOICED = 0x309a;
-
 // combining dot above
 const COMBINING_DOT_ABOVE = 0x0307;
 
@@ -24,16 +20,6 @@ const LATIN_SMALL_DOTLESS_J = 0x0237;
 export function hasDangerousPattern(codePoints: number[], chars: string[]): boolean {
 	for (let i = 0; i < codePoints.length; i++) {
 		const cp = codePoints[i];
-
-		// two Kana combining marks in a row
-		if (
-			(cp === COMBINING_KATAKANA_HIRAGANA_VOICED || cp === COMBINING_KATAKANA_HIRAGANA_SEMI_VOICED) &&
-			i + 1 < codePoints.length &&
-			(codePoints[i + 1] === COMBINING_KATAKANA_HIRAGANA_VOICED ||
-				codePoints[i + 1] === COMBINING_KATAKANA_HIRAGANA_SEMI_VOICED)
-		) {
-			return true;
-		}
 
 		// combining dot above (U+0307) after i, j, l, or dotless-i/j
 		if (cp === COMBINING_DOT_ABOVE && i > 0) {
@@ -68,8 +54,10 @@ export function hasDangerousPattern(codePoints: number[], chars: string[]): bool
 				prevScript !== Script.Common &&
 				prevScript !== Script.Inherited
 			) {
-				// check if this is a combining diacritical mark (U+0300-U+036F)
-				if (cp >= 0x0300 && cp <= 0x036f) {
+				// check if this is a combining diacritical mark (U+0300-U+0339)
+				// Chromium only blocks U+0300-U+0339; other combining diacriticals
+				// are not in the allowed character set to begin with
+				if (cp >= 0x0300 && cp <= 0x0339) {
 					return true;
 				}
 			}
