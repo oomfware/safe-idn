@@ -4,12 +4,6 @@ import { punycodeDecode } from './punycode-decode.ts';
 
 // #region types
 
-export interface ToUnicodeOptions {
-	checkHyphens?: boolean;
-	checkBidi?: boolean;
-	useSTD3ASCIIRules?: boolean;
-}
-
 export interface ToUnicodeResult {
 	domain: string;
 	error: boolean;
@@ -119,28 +113,6 @@ const isAllAscii = (s: string): boolean => {
 	return true;
 };
 
-// STD3 allows lowercase a-z, digits 0-9, and hyphen only;
-// uppercase A-Z is intentionally rejected (hostnames must be lowercase)
-const hasStd3InvalidAscii = (label: string): boolean => {
-	for (let i = 0; i < label.length; i++) {
-		const cp = label.charCodeAt(i);
-		if (cp > 0x7f) {
-			continue;
-		}
-		if (cp >= 0x61 && cp <= 0x7a) {
-			continue;
-		}
-		if (cp >= 0x30 && cp <= 0x39) {
-			continue;
-		}
-		if (cp === 0x2d) {
-			continue;
-		}
-		return true;
-	}
-	return false;
-};
-
 // checks for NFKC_CF-unstable characters and U+3002 IDEOGRAPHIC FULL STOP,
 // which is a dot separator mapped to '.' in UTS#46 but has CWKCF=false
 const hasNfkcCfUnstableOrDotSeparator = (label: string): boolean => {
@@ -169,7 +141,7 @@ const isPunycodePrefix = (label: string): boolean => {
 	);
 };
 
-const processLabel = (label: string, options: ToUnicodeOptions): { decoded: string; error: boolean } => {
+const processLabel = (label: string): { decoded: string; error: boolean } => {
 	let decoded = label;
 
 	if (isPunycodePrefix(label)) {
@@ -203,18 +175,10 @@ const processLabel = (label: string, options: ToUnicodeOptions): { decoded: stri
 		return { decoded, error: true };
 	}
 
-	// hyphens check (UTS#46 rules 2-3)
-	if (options.checkHyphens) {
-		if (decoded.length >= 4 && decoded[2] === '-' && decoded[3] === '-') {
-			return { decoded, error: true };
-		}
-		if (decoded.startsWith('-') || decoded.endsWith('-')) {
-			return { decoded, error: true };
-		}
-	}
-
-	// STD3 ASCII rules (UTS#46 rule 7 extension)
-	if (options.useSTD3ASCIIRules && hasStd3InvalidAscii(decoded)) {
+	// hyphens at positions 3-4 (UTS#46 validity criterion 4).
+	// ICU always enforces this regardless of CheckHyphens — prevents ACE prefix confusion.
+	// leading/trailing hyphens are NOT checked (matching Chromium's CheckHyphens=false).
+	if (decoded.length >= 4 && decoded[2] === '-' && decoded[3] === '-') {
 		return { decoded, error: true };
 	}
 
@@ -235,11 +199,14 @@ const processLabel = (label: string, options: ToUnicodeOptions): { decoded: stri
  * lightweight replacement for tr46's `toUnicode()` using `\p{Changes_When_NFKC_Casefolded}`
  * instead of a full IDNA mapping table, and approximate bidi checks via `\p{Script=...}`.
  *
+ * matches Chromium's ICU configuration: bidi checking always on, no STD3 rules,
+ * no CheckHyphens (leading/trailing hyphens are not checked). `--` at positions 3-4
+ * is always enforced by ICU regardless of CheckHyphens to prevent ACE prefix confusion.
+ *
  * @param domainName the domain name to process
- * @param options validation options controlling hyphens, bidi, and STD3 checks
  * @returns the decoded domain and whether any errors were found
  */
-export const toUnicode = (domainName: string, options: ToUnicodeOptions): ToUnicodeResult => {
+export const toUnicode = (domainName: string): ToUnicodeResult => {
 	if (domainName === '') {
 		return { domain: '', error: false };
 	}
@@ -249,15 +216,15 @@ export const toUnicode = (domainName: string, options: ToUnicodeOptions): ToUnic
 	let hasError = false;
 
 	for (const label of inputLabels) {
-		const { decoded, error } = processLabel(label, options);
+		const { decoded, error } = processLabel(label);
 		outputLabels.push(decoded);
 		if (error) {
 			hasError = true;
 		}
 	}
 
-	// bidi check operates on the whole domain
-	if (options.checkBidi) {
+	// bidi check operates on the whole domain (always on, matching UIDNA_CHECK_BIDI)
+	{
 		const rtlFlags = outputLabels.map(hasRtlChar);
 		if (rtlFlags.some(Boolean)) {
 			for (let i = 0; i < outputLabels.length; i++) {

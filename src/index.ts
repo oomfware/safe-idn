@@ -149,7 +149,7 @@ function isIdnTldSpoofingAscii(tld: string): boolean {
 	if (!tld.startsWith('xn--')) {
 		return false;
 	}
-	const decoded = toUnicode(tld, {});
+	const decoded = toUnicode(tld);
 	if (decoded.error) {
 		return false;
 	}

@@ -18,6 +18,21 @@ export interface LabelResult {
 
 // #endregion
 
+// #region ASCII validity
+
+// LDH (letter-digit-hyphen) ASCII: a-z, 0-9, hyphen
+function isLdhAscii(cp: number): boolean {
+	if (cp >= 0x61 && cp <= 0x7a) {
+		return true;
+	}
+	if (cp >= 0x30 && cp <= 0x39) {
+		return true;
+	}
+	return cp === 0x2d;
+}
+
+// #endregion
+
 // #region digit confusables
 
 // digit lookalike characters — non-digit characters that look like digits.
@@ -477,25 +492,9 @@ export function checkLabel(label: string, tld: string, skeletonChecker?: Skeleto
 }
 
 function checkPunycodeLabel(label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult {
-	const result = toUnicode(label, {
-		checkBidi: true,
-		checkHyphens: true,
-		useSTD3ASCIIRules: true,
-	});
+	const result = toUnicode(label);
 
 	if (result.error) {
-		// retry without STD3 rules to decode labels with non-LDH ASCII (like '!').
-		// keep bidi and hyphen checks — failures there mean the label is truly invalid,
-		// matching Chromium/ICU behavior (UIDNA_CHECK_BIDI, no STD3).
-		const lenient = toUnicode(label, {
-			checkBidi: true,
-			checkHyphens: true,
-			useSTD3ASCIIRules: false,
-		});
-		if (!lenient.error && /[^\x00-\x7f]/.test(lenient.domain)) {
-			// decoded but has non-standard ASCII — mark as unsafe
-			return { input: label, unicode: lenient.domain, result: 'unsafe' };
-		}
 		return { input: label, unicode: '', result: 'invalid' };
 	}
 
@@ -516,6 +515,15 @@ function runSafetyChecks(
 ): LabelResult {
 	const chars = [...unicode];
 	const codePoints = chars.map((ch) => ch.codePointAt(0)!);
+
+	// non-LDH ASCII check — characters outside [a-z0-9-] in a label with non-ASCII content.
+	// Chromium's uspoof_setAllowedUnicodeSet blocks these; we don't use STD3 rules in toUnicode,
+	// so catch them here instead.
+	for (const cp of codePoints) {
+		if (cp <= 0x7f && !isLdhAscii(cp)) {
+			return { input, unicode, result: 'unsafe' };
+		}
+	}
 
 	// deviation characters — ZWNJ/ZWJ always unsafe
 	for (const cp of codePoints) {
