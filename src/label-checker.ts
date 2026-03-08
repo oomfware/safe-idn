@@ -21,7 +21,7 @@ export interface LabelResult {
 // #region ASCII validity
 
 // LDH (letter-digit-hyphen) ASCII: a-z, 0-9, hyphen
-function isLdhAscii(cp: number): boolean {
+const isLdhAscii = (cp: number): boolean => {
 	if (cp >= 0x61 && cp <= 0x7a) {
 		return true;
 	}
@@ -29,7 +29,7 @@ function isLdhAscii(cp: number): boolean {
 		return true;
 	}
 	return cp === 0x2d;
-}
+};
 
 // #endregion
 
@@ -124,7 +124,7 @@ const cjkLetterLike = new Set([
 	0x4e36, // 丶 (also in Chromium's slash-like set, but either-side check dominates)
 ]);
 
-function isExtendedCjk(cp: number): boolean {
+const isExtendedCjk = (cp: number): boolean => {
 	if (cp >= 0x4e00 && cp <= 0x9fff) {
 		return true;
 	}
@@ -153,10 +153,10 @@ function isExtendedCjk(cp: number): boolean {
 		return true;
 	} // Kangxi Radicals
 	return false;
-}
+};
 
 // non-CJK neighbor means a letter character (not digit, not hyphen, not combining mark)
-function isNonCjkLetter(cp: number): boolean {
+const isNonCjkLetter = (cp: number): boolean => {
 	if (cp >= 0x0041 && cp <= 0x005a) {
 		return true;
 	} // A-Z
@@ -168,14 +168,14 @@ function isNonCjkLetter(cp: number): boolean {
 	} // Latin Extended
 	const s = getScriptByCodePoint(cp);
 	return s === Script.Latin || s === Script.Cyrillic || s === Script.Greek;
-}
+};
 
-function isCjkCharNextToNonCjk(
+const isCjkCharNextToNonCjk = (
 	cp: number,
 	idx: number,
 	codePoints: number[],
 	labelHasNonCjkLetter: boolean,
-): boolean {
+): boolean => {
 	const isSlash = cjkSlashLike.has(cp);
 	const isLetter = cjkLetterLike.has(cp);
 	if (!isSlash && !isLetter) {
@@ -211,22 +211,22 @@ function isCjkCharNextToNonCjk(
 	}
 
 	return false;
-}
+};
 
 // #endregion
 
 // #region Katakana context rules
 
-function isInvalidProlongedSoundMark(idx: number, codePoints: number[]): boolean {
+const isInvalidProlongedSoundMark = (idx: number, codePoints: number[]): boolean => {
 	if (idx === 0) {
 		return true;
 	}
 	const prev = codePoints[idx - 1];
 	const prevScript = getScriptByCodePoint(prev);
 	return prevScript !== Script.Hiragana && prevScript !== Script.Katakana;
-}
+};
 
-function isInvalidMiddleDot30fb(codePoints: number[], chars: string[]): boolean {
+const isInvalidMiddleDot30fb = (codePoints: number[], chars: string[]): boolean => {
 	for (let i = 0; i < chars.length; i++) {
 		if (codePoints[i] === 0x30fb) {
 			continue;
@@ -237,21 +237,21 @@ function isInvalidMiddleDot30fb(codePoints: number[], chars: string[]): boolean 
 		}
 	}
 	return false;
-}
+};
 
-function isInvalidKatakanaIteration(idx: number, codePoints: number[]): boolean {
+const isInvalidKatakanaIteration = (idx: number, codePoints: number[]): boolean => {
 	if (idx === 0) {
 		return true;
 	}
 	const prevScript = getScriptByCodePoint(codePoints[idx - 1]);
 	return prevScript !== Script.Katakana;
-}
+};
 
 // #endregion
 
 // #region mixed digit detection
 
-function getDigitScript(cp: number): Script | null {
+const getDigitScript = (cp: number): Script | null => {
 	if (cp >= 0x0030 && cp <= 0x0039) {
 		return Script.Common;
 	}
@@ -301,9 +301,9 @@ function getDigitScript(cp: number): Script | null {
 		return Script.Myanmar;
 	}
 	return null;
-}
+};
 
-function hasMixedDigits(codePoints: number[]): boolean {
+const hasMixedDigits = (codePoints: number[]): boolean => {
 	let digitScript: Script | null = null;
 	for (const cp of codePoints) {
 		const ds = getDigitScript(cp);
@@ -317,9 +317,9 @@ function hasMixedDigits(codePoints: number[]): boolean {
 		}
 	}
 	return false;
-}
+};
 
-function hasMixedDigitAndLookalike(codePoints: number[]): boolean {
+const hasMixedDigitAndLookalike = (codePoints: number[]): boolean => {
 	let hasAsciiDigit = false;
 	let hasDigitLookalike = false;
 	for (const cp of codePoints) {
@@ -330,13 +330,13 @@ function hasMixedDigitAndLookalike(codePoints: number[]): boolean {
 		}
 	}
 	return hasAsciiDigit && hasDigitLookalike;
-}
+};
 
 // #endregion
 
 // #region digit-only spoof
 
-function isDigitOnlySpoof(codePoints: number[]): boolean {
+const isDigitOnlySpoof = (codePoints: number[]): boolean => {
 	if (codePoints.length === 0) {
 		return false;
 	}
@@ -355,7 +355,7 @@ function isDigitOnlySpoof(codePoints: number[]): boolean {
 		return false;
 	}
 	return hasNonAsciiDigit;
-}
+};
 
 // #endregion
 
@@ -363,7 +363,7 @@ function isDigitOnlySpoof(codePoints: number[]): boolean {
 
 const combiningMarkRe = /\p{M}/u;
 
-function hasRepeatedCombiningMarks(labelText: string): boolean {
+const hasRepeatedCombiningMarks = (labelText: string): boolean => {
 	// decompose to NFD to detect composed char + same combining mark
 	const nfd = labelText.normalize('NFD');
 	const chars = [...nfd];
@@ -375,13 +375,13 @@ function hasRepeatedCombiningMarks(labelText: string): boolean {
 		}
 	}
 	return false;
-}
+};
 
 // #endregion
 
 // #region Gershayim (U+05F4) context
 
-function isGershayimSafe(codePoints: number[], chars: string[]): boolean {
+const isGershayimSafe = (codePoints: number[], chars: string[]): boolean => {
 	for (let i = 0; i < codePoints.length; i++) {
 		if (codePoints[i] === 0x05f4) {
 			continue;
@@ -392,7 +392,7 @@ function isGershayimSafe(codePoints: number[], chars: string[]): boolean {
 		}
 	}
 	return true;
-}
+};
 
 // #endregion
 
@@ -400,7 +400,7 @@ function isGershayimSafe(codePoints: number[], chars: string[]): boolean {
 
 // Chromium: non-ASCII Latin (accented characters) must not mix with CJK scripts.
 // only basic ASCII Latin can mix with Han/Kana/Hangul/Bopomofo.
-function hasNonAsciiLatinWithCjk(codePoints: number[], chars: string[]): boolean {
+const hasNonAsciiLatinWithCjk = (codePoints: number[], chars: string[]): boolean => {
 	let hasNonAsciiLatin = false;
 	let hasCjkScript = false;
 	for (let i = 0; i < codePoints.length; i++) {
@@ -421,7 +421,7 @@ function hasNonAsciiLatinWithCjk(codePoints: number[], chars: string[]): boolean
 		}
 	}
 	return hasNonAsciiLatin && hasCjkScript;
-}
+};
 
 // #endregion
 
@@ -433,7 +433,7 @@ const katakanaConfusables = new Set([0x30d8, 0x30d9, 0x30da]); // ヘ ベ ペ
 
 // detects Hiragana confusable letters in an otherwise-Katakana label or vice versa.
 // Chromium: ^[\p{scx=kana}]+[\u3078-\u307a][\p{scx=kana}]+$
-function hasKanaConfusableMix(codePoints: number[]): boolean {
+const hasKanaConfusableMix = (codePoints: number[]): boolean => {
 	let hasHiraganaConfusable = false;
 	let hasKatakanaConfusable = false;
 	let allOthersKatakanaLike = true;
@@ -471,7 +471,7 @@ function hasKanaConfusableMix(codePoints: number[]): boolean {
 	}
 
 	return false;
-}
+};
 
 // #endregion
 
@@ -479,54 +479,30 @@ function hasKanaConfusableMix(codePoints: number[]): boolean {
 
 // U+200C (ZWNJ) and U+200D (ZWJ) are deviation characters — always unsafe
 // U+00DF (ß) in combination with Latin-lookalike domains → skeleton check handles it
-function isUnsafeDeviationChar(cp: number): boolean {
+const isUnsafeDeviationChar = (cp: number): boolean => {
 	return cp === 0x200c || cp === 0x200d;
-}
+};
 
 // #endregion
 
 // #region main label check
 
-/**
- * checks a single label for IDN safety.
- *
- * @param label the raw label (may be punycode like "xn--...")
- * @param tld the top-level domain (ASCII form)
- * @param skeletonChecker optional skeleton-based confusable checker
- * @returns the label check result
- */
-export function checkLabel(label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult {
-	if (label === '' || !/[^\x00-\x7f]/.test(label)) {
-		if (label.startsWith('xn--')) {
-			return checkPunycodeLabel(label, tld, skeletonChecker);
-		}
-		return { input: label, unicode: label, result: 'safe' };
+/** callback for skeleton-based confusable checks. returns true if unsafe. */
+export type SkeletonChecker = (label: string, codePoints: number[], chars: string[], tld: string) => boolean;
+
+const getSingleScript = (scripts: Set<Script>): Script | null => {
+	if (scripts.size === 1) {
+		return scripts.values().next().value!;
 	}
-	return runSafetyChecks(label, label, tld, skeletonChecker);
-}
+	return null;
+};
 
-function checkPunycodeLabel(label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult {
-	const result = toUnicode(label);
-
-	if (result.error) {
-		return { input: label, unicode: '', result: 'invalid' };
-	}
-
-	const unicode = result.domain;
-
-	if (!/[^\x00-\x7f]/.test(unicode)) {
-		return { input: label, unicode, result: 'safe' };
-	}
-
-	return runSafetyChecks(label, unicode, tld, skeletonChecker);
-}
-
-function runSafetyChecks(
+const runSafetyChecks = (
 	input: string,
 	unicode: string,
 	tld: string,
 	skeletonChecker?: SkeletonChecker,
-): LabelResult {
+): LabelResult => {
 	const chars = [...unicode];
 	const codePoints = chars.map((ch) => ch.codePointAt(0)!);
 
@@ -697,16 +673,40 @@ function runSafetyChecks(
 	}
 
 	return { input, unicode, result: 'safe' };
-}
+};
 
-function getSingleScript(scripts: Set<Script>): Script | null {
-	if (scripts.size === 1) {
-		return scripts.values().next().value!;
+const checkPunycodeLabel = (label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult => {
+	const result = toUnicode(label);
+
+	if (result.error) {
+		return { input: label, unicode: '', result: 'invalid' };
 	}
-	return null;
-}
 
-/** callback for skeleton-based confusable checks. returns true if unsafe. */
-export type SkeletonChecker = (label: string, codePoints: number[], chars: string[], tld: string) => boolean;
+	const unicode = result.domain;
+
+	if (!/[^\x00-\x7f]/.test(unicode)) {
+		return { input: label, unicode, result: 'safe' };
+	}
+
+	return runSafetyChecks(label, unicode, tld, skeletonChecker);
+};
+
+/**
+ * checks a single label for IDN safety.
+ *
+ * @param label the raw label (may be punycode like "xn--...")
+ * @param tld the top-level domain (ASCII form)
+ * @param skeletonChecker optional skeleton-based confusable checker
+ * @returns the label check result
+ */
+export const checkLabel = (label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult => {
+	if (label === '' || !/[^\x00-\x7f]/.test(label)) {
+		if (label.startsWith('xn--')) {
+			return checkPunycodeLabel(label, tld, skeletonChecker);
+		}
+		return { input: label, unicode: label, result: 'safe' };
+	}
+	return runSafetyChecks(label, label, tld, skeletonChecker);
+};
 
 // #endregion

@@ -9,6 +9,45 @@ const COMBINING_DOT_ABOVE = 0x0307;
 const LATIN_SMALL_DOTLESS_I = 0x0131;
 const LATIN_SMALL_DOTLESS_J = 0x0237;
 
+const combiningMarkRe = /\p{M}/u;
+
+const isCombiningMark = (cp: number): boolean => {
+	return combiningMarkRe.test(String.fromCodePoint(cp));
+};
+
+const isRtlNonspacingMark = (cp: number): boolean => {
+	// Arabic diacritics
+	if (cp >= 0x0610 && cp <= 0x061a) {
+		return true;
+	}
+	if (cp >= 0x064b && cp <= 0x065f) {
+		return true;
+	}
+	if (cp === 0x0670) {
+		return true;
+	}
+	if (cp >= 0x06d6 && cp <= 0x06ed) {
+		return true;
+	}
+	// Hebrew points
+	if (cp >= 0x0591 && cp <= 0x05bd) {
+		return true;
+	}
+	if (cp === 0x05bf) {
+		return true;
+	}
+	if (cp >= 0x05c1 && cp <= 0x05c2) {
+		return true;
+	}
+	if (cp >= 0x05c4 && cp <= 0x05c5) {
+		return true;
+	}
+	if (cp === 0x05c7) {
+		return true;
+	}
+	return false;
+};
+
 /**
  * checks if a label contains dangerous character patterns.
  * ported from Chromium's dangerous_pattern checks.
@@ -17,7 +56,7 @@ const LATIN_SMALL_DOTLESS_J = 0x0237;
  * @param chars the characters of the label
  * @returns true if a dangerous pattern is detected
  */
-export function hasDangerousPattern(codePoints: number[], chars: string[]): boolean {
+export const hasDangerousPattern = (codePoints: number[], chars: string[]): boolean => {
 	for (let i = 0; i < codePoints.length; i++) {
 		const cp = codePoints[i];
 
@@ -78,45 +117,6 @@ export function hasDangerousPattern(codePoints: number[], chars: string[]): bool
 	}
 
 	return false;
-}
-
-const combiningMarkRe = /\p{M}/u;
-
-function isCombiningMark(cp: number): boolean {
-	return combiningMarkRe.test(String.fromCodePoint(cp));
-}
-
-function isRtlNonspacingMark(cp: number): boolean {
-	// Arabic diacritics
-	if (cp >= 0x0610 && cp <= 0x061a) {
-		return true;
-	}
-	if (cp >= 0x064b && cp <= 0x065f) {
-		return true;
-	}
-	if (cp === 0x0670) {
-		return true;
-	}
-	if (cp >= 0x06d6 && cp <= 0x06ed) {
-		return true;
-	}
-	// Hebrew points
-	if (cp >= 0x0591 && cp <= 0x05bd) {
-		return true;
-	}
-	if (cp === 0x05bf) {
-		return true;
-	}
-	if (cp >= 0x05c1 && cp <= 0x05c2) {
-		return true;
-	}
-	if (cp >= 0x05c4 && cp <= 0x05c5) {
-		return true;
-	}
-	if (cp === 0x05c7) {
-		return true;
-	}
-	return false;
-}
+};
 
 // #endregion

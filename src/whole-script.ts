@@ -113,12 +113,12 @@ const scriptEntries: ScriptEntry[] = [
  * @param labelText the label text (for allowed word checks)
  * @returns true if the label is a whole-script confusable that should be blocked
  */
-export function isWholeScriptConfusable(
+export const isWholeScriptConfusable = (
 	codePoints: number[],
 	labelScript: Script | null,
 	tld: string,
 	labelText: string,
-): boolean {
+): boolean => {
 	if (labelScript === null || labelScript === Script.Latin || labelScript === Script.Common) {
 		return false;
 	}
@@ -157,6 +157,6 @@ export function isWholeScriptConfusable(
 
 	// script not in our confusable table → not a whole-script confusable
 	return false;
-}
+};
 
 // #endregion

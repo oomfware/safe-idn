@@ -9,12 +9,12 @@
  * @param tld the top-level domain
  * @returns true if the character is blocked under this TLD
  */
-export function isTldRestricted(
+export const isTldRestricted = (
 	cp: number,
 	prevCp: number | undefined,
 	nextCp: number | undefined,
 	tld: string,
-): boolean {
+): boolean => {
 	// U+00FE (þ) and U+00F0 (ð) only allowed under .is, .fo
 	if (cp === 0x00fe || cp === 0x00f0) {
 		return tld !== 'is' && tld !== 'fo';
@@ -35,4 +35,4 @@ export function isTldRestricted(
 	}
 
 	return false;
-}
+};

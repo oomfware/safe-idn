@@ -74,23 +74,23 @@ const scriptTests: [RegExp, Script][] = [
  * @param ch the character (single code point as string)
  * @returns the detected script
  */
-export function getScript(ch: string): Script {
+export const getScript = (ch: string): Script => {
 	for (const [re, script] of scriptTests) {
 		if (re.test(ch)) {
 			return script;
 		}
 	}
 	return Script.Other;
-}
+};
 
 /**
  * detects the Unicode script of a code point number.
  * @param cp the code point
  * @returns the detected script
  */
-export function getScriptByCodePoint(cp: number): Script {
+export const getScriptByCodePoint = (cp: number): Script => {
 	return getScript(String.fromCodePoint(cp));
-}
+};
 
 // #endregion
 
@@ -111,7 +111,7 @@ const SG = {
 } as const;
 
 // maps Script → ScriptGroup for combo table lookup
-function toGroup(s: Script): ScriptGroup {
+const toGroup = (s: Script): ScriptGroup => {
 	switch (s) {
 		case Script.Bopomofo:
 			return SG.Bopo;
@@ -132,7 +132,7 @@ function toGroup(s: Script): ScriptGroup {
 		default:
 			return SG.Othr;
 	}
-}
+};
 
 // allowed script group combinations (adapted from Firefox's scriptComboTable).
 // each entry is a bitmask of ScriptGroups that may appear together in a label.
@@ -161,7 +161,7 @@ const allowedCombos: number[] = [
  * @param scripts the set of scripts found in a label
  * @returns true if the combination is allowed
  */
-export function isScriptComboAllowed(scripts: Set<Script>): boolean {
+export const isScriptComboAllowed = (scripts: Set<Script>): boolean => {
 	// build bitmask of significant script groups
 	let mask = 0;
 	for (const s of scripts) {
@@ -189,6 +189,6 @@ export function isScriptComboAllowed(scripts: Set<Script>): boolean {
 	}
 
 	return false;
-}
+};
 
 // #endregion

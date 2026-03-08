@@ -50,7 +50,7 @@ const defaultSkeletonChecker: SkeletonChecker = (label) => {
 
 // #region TLD extraction
 
-function extractTld(labels: string[]): string {
+const extractTld = (labels: string[]): string => {
 	if (labels.length === 0) {
 		return '';
 	}
@@ -59,7 +59,7 @@ function extractTld(labels: string[]): string {
 		tldIdx--;
 	}
 	return labels[tldIdx].toLowerCase();
-}
+};
 
 // known two-part public suffixes
 const twoPartSuffixes = new Set([
@@ -145,7 +145,7 @@ const commonAsciiTlds = new Set([
 	'pro',
 ]);
 
-function isIdnTldSpoofingAscii(tld: string): boolean {
+const isIdnTldSpoofingAscii = (tld: string): boolean => {
 	if (!tld.startsWith('xn--')) {
 		return false;
 	}
@@ -155,9 +155,9 @@ function isIdnTldSpoofingAscii(tld: string): boolean {
 	}
 	const skel = skeletonStripDiacritics(decoded.domain);
 	return commonAsciiTlds.has(skel);
-}
+};
 
-function getRegistrableLabelIndex(labels: string[]): number {
+const getRegistrableLabelIndex = (labels: string[]): number => {
 	const len = labels.length;
 	const end = len > 0 && labels[len - 1] === '' ? len - 1 : len;
 	if (end <= 1) {
@@ -171,7 +171,7 @@ function getRegistrableLabelIndex(labels: string[]): number {
 		}
 	}
 	return end - 2;
-}
+};
 
 // #endregion
 
@@ -185,7 +185,7 @@ function getRegistrableLabelIndex(labels: string[]): number {
  * @param domain the domain to check (may contain punycode labels)
  * @returns detailed check results including per-label verdicts
  */
-export function checkDomain(domain: string): DomainCheckResult {
+export const checkDomain = (domain: string): DomainCheckResult => {
 	if (domain === '' || domain === '.') {
 		return {
 			display: domain,
@@ -228,7 +228,7 @@ export function checkDomain(domain: string): DomainCheckResult {
 		display: displayParts.join('.'),
 		labels: results,
 	};
-}
+};
 
 /**
  * returns the safe display form of a domain.
@@ -238,8 +238,8 @@ export function checkDomain(domain: string): DomainCheckResult {
  * @param domain the domain to process (may contain punycode labels)
  * @returns the safe display string
  */
-export function safeDisplay(domain: string): string {
+export const safeDisplay = (domain: string): string => {
 	return checkDomain(domain).display;
-}
+};
 
 // #endregion

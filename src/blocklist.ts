@@ -67,7 +67,7 @@ const blockedRanges: [number, number][] = [
 
 // #region lookup
 
-function isInBlockedRanges(cp: number): boolean {
+const isInBlockedRanges = (cp: number): boolean => {
 	let lo = 0;
 	let hi = blockedRanges.length - 1;
 	while (lo <= hi) {
@@ -82,7 +82,7 @@ function isInBlockedRanges(cp: number): boolean {
 		}
 	}
 	return false;
-}
+};
 
 /**
  * checks if a character is blocked by the IDN safety blocklist.
@@ -90,7 +90,7 @@ function isInBlockedRanges(cp: number): boolean {
  * @param cp the code point value
  * @returns true if the character is blocked
  */
-export function isBlocked(ch: string, cp: number): boolean {
+export const isBlocked = (ch: string, cp: number): boolean => {
 	if (cp <= 0x7f) {
 		return false;
 	}
@@ -102,6 +102,6 @@ export function isBlocked(ch: string, cp: number): boolean {
 		return true;
 	}
 	return false;
-}
+};
 
 // #endregion
