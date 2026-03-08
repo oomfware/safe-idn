@@ -484,10 +484,12 @@ function checkPunycodeLabel(label: string, tld: string, skeletonChecker?: Skelet
 	});
 
 	if (result.error) {
-		// retry without STD3 rules to decode labels with non-LDH ASCII (like '!')
+		// retry without STD3 rules to decode labels with non-LDH ASCII (like '!').
+		// keep bidi and hyphen checks — failures there mean the label is truly invalid,
+		// matching Chromium/ICU behavior (UIDNA_CHECK_BIDI, no STD3).
 		const lenient = toUnicode(label, {
-			checkBidi: false,
-			checkHyphens: false,
+			checkBidi: true,
+			checkHyphens: true,
 			useSTD3ASCIIRules: false,
 		});
 		if (!lenient.error && /[^\x00-\x7f]/.test(lenient.domain)) {

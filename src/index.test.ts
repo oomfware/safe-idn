@@ -282,7 +282,7 @@ const kIdnCases: IdnTestCase[] = [
 	// Devanagari + Han
 	{
 		input: 'xn--t2bes3ds6749n.com',
-		unicode: '\u0930\u094b\u0932\u0947\u76e8\u0938.com',
+		unicode: '\u0930\u094b\u0932\u0947\u76e7\u0938.com',
 		expected: Result.Unsafe,
 	},
 	// Devanagari + Bengali
@@ -603,7 +603,7 @@ const kIdnCases: IdnTestCase[] = [
 	{ input: 'xn--123567890-dr5h.com', unicode: '123\u3110567890.com', expected: Result.Unsafe },
 	{ input: 'xn--123567890-dm4b.com', unicode: '123\u13ce567890.com', expected: Result.Unsafe },
 	{ input: 'xn--123457890-fzh.com', unicode: '12345\u04317890.com', expected: Result.Unsafe },
-	{ input: 'xn--123457890-fmk.com', unicode: '12345\u0573\u037890.com', expected: Result.Unsafe },
+	{ input: 'xn--123457890-fmk.com', unicode: '12345\u05737890.com', expected: Result.Unsafe },
 	{ input: 'xn--123456790-6od.com', unicode: '1234567\u022390.com', expected: Result.Unsafe },
 	{ input: 'xn--123456780-71w.com', unicode: '12345678\u0b680.com', expected: Result.Unsafe },
 	{ input: 'xn--123456789-ohw.com', unicode: '123456789\u0b20.com', expected: Result.Unsafe },
@@ -647,8 +647,8 @@ const kIdnCases: IdnTestCase[] = [
 
 	// long domain forcing buffer realloc
 	{
-		input: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-		unicode: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		input: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+		unicode: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
 		expected: Result.Safe,
 	},
 
@@ -715,8 +715,9 @@ const kIdnCases: IdnTestCase[] = [
 	{ input: 'xn--svgy16dha.jp', unicode: '\u30a1\u2027\u30a3.jp', expected: Result.Unsafe },
 	// Gershayim with other Hebrew characters is allowed
 	{ input: 'xn--5db6bh9b.il', unicode: '\u05e9\u05d1\u05f4\u05e6.il', expected: Result.Safe },
-	// Hebrew Gershayim with Latin is invalid
-	// tr46 decodes this successfully (unlike ICU which rejects it), so we get Unsafe not Invalid
+	// Hebrew Gershayim with Latin — Chromium/ICU says Invalid (ContextO rules reject
+	// U+05F4 between non-Hebrew characters), but we don't implement ContextO so we
+	// decode it successfully and catch it as Unsafe via script mixing
 	{ input: 'xn--ab-yod.com', unicode: 'a\u05f4b.com', expected: Result.Unsafe },
 	// Hebrew Gershayim with Arabic is disallowed
 	{ input: 'xn--5eb7h.eg', unicode: '\u0628\u05f4.eg', expected: Result.Unsafe },
@@ -806,16 +807,13 @@ const kIdnCases: IdnTestCase[] = [
 	// Georgian Capital Letter
 	{ input: 'xn--1nd.com', unicode: '\u10bd.com', expected: Result.Invalid },
 	// 3rd and 4th characters are '-'
-	// tr46 decodes this in lenient mode (unlike ICU strict), so we get Unsafe not Invalid
-	{ input: 'xn-----8kci4dhsd', unicode: '\u0440\u0443--\u0430\u0432\u0442\u043e', expected: Result.Unsafe },
+	{ input: 'xn-----8kci4dhsd', unicode: '\u0440\u0443--\u0430\u0432\u0442\u043e', expected: Result.Invalid },
 	// leading combining mark
 	{ input: 'xn--72b.com', unicode: '\u093e.com', expected: Result.Invalid },
 	// BiDi: cannot start with Arabic-Indic Number
-	// tr46 decodes Arabic-Indic digits successfully (unlike ICU), so we get Unsafe not Invalid
-	{ input: 'xn--8hbae.eg', unicode: '\u0662\u0660\u0660.eg', expected: Result.Unsafe },
+	{ input: 'xn--8hbae.eg', unicode: '\u0662\u0660\u0660.eg', expected: Result.Invalid },
 	// BiDi: cannot start with RTL and end with LTR
-	// tr46 decodes Arabic+Latin mix successfully (unlike ICU), so we get Unsafe not Invalid
-	{ input: 'xn--x-ymcov.eg', unicode: '\u062c\u0627\u0631x.eg', expected: Result.Unsafe },
+	{ input: 'xn--x-ymcov.eg', unicode: '\u062c\u0627\u0631x.eg', expected: Result.Invalid },
 	// can start with RTL and end with EN
 	{ input: 'xn--2-ymcov.eg', unicode: '\u062c\u0627\u06312.eg', expected: Result.Safe },
 	// can start with RTL and end with AN
