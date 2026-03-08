@@ -28,6 +28,7 @@
 		"typecheck": "tsc --noEmit",
 		"fmt": "oxfmt",
 		"lint": "oxlint",
+		"test": "node --test src/**/*.test.ts",
 		"prepublishOnly": "pnpm run build"
 	},
 	"devDependencies": {
