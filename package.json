@@ -1,6 +1,6 @@
 {
 	"name": "@oomfware/safe-idn",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "detect IDN homograph spoofing",
 	"license": "0BSD",
 	"repository": {
