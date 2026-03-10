@@ -1,7 +1,7 @@
 import { isBlocked } from './blocklist.ts';
 import { hasDangerousPattern } from './dangerous-patterns.ts';
 import { toUnicode } from './idna.ts';
-import { Script, getScript, getScriptByCodePoint, isScriptComboAllowed } from './scripts.ts';
+import { Script, getScriptByCodePoint, isScriptComboAllowed } from './scripts.ts';
 import { isTldRestricted } from './tld-rules.ts';
 import { isWholeScriptConfusable } from './whole-script.ts';
 
@@ -226,13 +226,12 @@ const isInvalidProlongedSoundMark = (idx: number, codePoints: number[]): boolean
 	return prevScript !== Script.Hiragana && prevScript !== Script.Katakana;
 };
 
-const isInvalidMiddleDot30fb = (codePoints: number[], chars: string[]): boolean => {
-	for (let i = 0; i < chars.length; i++) {
-		if (codePoints[i] === 0x30fb) {
+const isInvalidMiddleDot30fb = (codePoints: number[]): boolean => {
+	for (const cp of codePoints) {
+		if (cp === 0x30fb) {
 			continue;
 		}
-		const s = getScript(chars[i]);
-		if (s === Script.Latin) {
+		if (getScriptByCodePoint(cp) === Script.Latin) {
 			return true;
 		}
 	}
@@ -381,12 +380,12 @@ const hasRepeatedCombiningMarks = (labelText: string): boolean => {
 
 // #region Gershayim (U+05F4) context
 
-const isGershayimSafe = (codePoints: number[], chars: string[]): boolean => {
-	for (let i = 0; i < codePoints.length; i++) {
-		if (codePoints[i] === 0x05f4) {
+const isGershayimSafe = (codePoints: number[]): boolean => {
+	for (const cp of codePoints) {
+		if (cp === 0x05f4) {
 			continue;
 		}
-		const s = getScript(chars[i]);
+		const s = getScriptByCodePoint(cp);
 		if (s !== Script.Hebrew && s !== Script.Common && s !== Script.Inherited) {
 			return false;
 		}
@@ -400,12 +399,11 @@ const isGershayimSafe = (codePoints: number[], chars: string[]): boolean => {
 
 // Chromium: non-ASCII Latin (accented characters) must not mix with CJK scripts.
 // only basic ASCII Latin can mix with Han/Kana/Hangul/Bopomofo.
-const hasNonAsciiLatinWithCjk = (codePoints: number[], chars: string[]): boolean => {
+const hasNonAsciiLatinWithCjk = (codePoints: number[]): boolean => {
 	let hasNonAsciiLatin = false;
 	let hasCjkScript = false;
-	for (let i = 0; i < codePoints.length; i++) {
-		const cp = codePoints[i];
-		const s = getScript(chars[i]);
+	for (const cp of codePoints) {
+		const s = getScriptByCodePoint(cp);
 		// non-ASCII Latin letter
 		if (s === Script.Latin && cp > 0x7f) {
 			hasNonAsciiLatin = true;
@@ -516,7 +514,7 @@ const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResu
 
 	// blocklist + identifier status
 	for (let i = 0; i < codePoints.length; i++) {
-		if (isBlocked(chars[i], codePoints[i])) {
+		if (isBlocked(codePoints[i])) {
 			return { input, unicode, result: 'unsafe' };
 		}
 	}
@@ -524,8 +522,8 @@ const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResu
 	// script detection
 	const scripts = new Set<Script>();
 	const actualScripts = new Set<Script>(); // non-Common/Inherited scripts
-	for (const ch of chars) {
-		const s = getScript(ch);
+	for (const cp of codePoints) {
+		const s = getScriptByCodePoint(cp);
 		scripts.add(s);
 		if (s !== Script.Common && s !== Script.Inherited) {
 			actualScripts.add(s);
@@ -556,7 +554,7 @@ const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResu
 	}
 
 	// non-ASCII Latin + CJK mixing
-	if (hasNonAsciiLatinWithCjk(codePoints, chars)) {
+	if (hasNonAsciiLatinWithCjk(codePoints)) {
 		return { input, unicode, result: 'unsafe' };
 	}
 
@@ -619,7 +617,7 @@ const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResu
 		}
 
 		// U+30FB (Katakana Middle Dot)
-		if (cp === 0x30fb && isInvalidMiddleDot30fb(codePoints, chars)) {
+		if (cp === 0x30fb && isInvalidMiddleDot30fb(codePoints)) {
 			return { input, unicode, result: 'unsafe' };
 		}
 
@@ -634,7 +632,7 @@ const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResu
 		}
 
 		// Gershayim (U+05F4)
-		if (cp === 0x05f4 && !isGershayimSafe(codePoints, chars)) {
+		if (cp === 0x05f4 && !isGershayimSafe(codePoints)) {
 			return { input, unicode, result: scripts.has(Script.Latin) ? 'invalid' : 'unsafe' };
 		}
 	}
@@ -653,7 +651,7 @@ const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResu
 	}
 
 	// dangerous patterns
-	if (hasDangerousPattern(codePoints, chars)) {
+	if (hasDangerousPattern(codePoints)) {
 		return { input, unicode, result: 'unsafe' };
 	}
 

@@ -1,4 +1,4 @@
-import { Script, getScript } from './scripts.ts';
+import { Script, getScriptByCodePoint } from './scripts.ts';
 
 // #region dangerous patterns
 
@@ -53,10 +53,9 @@ const isRtlNonspacingMark = (cp: number): boolean => {
  * ported from Chromium's dangerous_pattern checks.
  *
  * @param codePoints the code points of the label
- * @param chars the characters of the label
  * @returns true if a dangerous pattern is detected
  */
-export const hasDangerousPattern = (codePoints: number[], chars: string[]): boolean => {
+export const hasDangerousPattern = (codePoints: number[]): boolean => {
 	for (let i = 0; i < codePoints.length; i++) {
 		const cp = codePoints[i];
 
@@ -76,8 +75,7 @@ export const hasDangerousPattern = (codePoints: number[], chars: string[]): bool
 
 		// any combining mark after dotless-i (U+0131) or dotless-j (U+0237)
 		if ((cp === LATIN_SMALL_DOTLESS_I || cp === LATIN_SMALL_DOTLESS_J) && i + 1 < codePoints.length) {
-			const nextScript = getScript(chars[i + 1]);
-			if (nextScript === Script.Inherited) {
+			if (getScriptByCodePoint(codePoints[i + 1]) === Script.Inherited) {
 				// Inherited typically means combining marks
 				return true;
 			}
@@ -85,7 +83,7 @@ export const hasDangerousPattern = (codePoints: number[], chars: string[]): bool
 
 		// combining diacritics after non-Latin/Greek/Cyrillic characters
 		if (i > 0 && isCombiningMark(cp)) {
-			const prevScript = getScript(chars[i - 1]);
+			const prevScript = getScriptByCodePoint(codePoints[i - 1]);
 			if (
 				prevScript !== Script.Latin &&
 				prevScript !== Script.Greek &&
@@ -104,7 +102,7 @@ export const hasDangerousPattern = (codePoints: number[], chars: string[]): bool
 
 		// RTL nonspacing marks after non-RTL scripts
 		if (i > 0 && isRtlNonspacingMark(cp)) {
-			const prevScript = getScript(chars[i - 1]);
+			const prevScript = getScriptByCodePoint(codePoints[i - 1]);
 			if (
 				prevScript !== Script.Arabic &&
 				prevScript !== Script.Hebrew &&

@@ -378,17 +378,8 @@ const getScriptFromCp = (cp: number): Script => {
 };
 
 /**
- * detects the Unicode script of a character.
- * uses code-point range tables instead of regex for performance.
- * @param ch the character (single code point as string)
- * @returns the detected script
- */
-export const getScript = (ch: string): Script => {
-	return getScriptFromCp(ch.codePointAt(0)!);
-};
-
-/**
  * detects the Unicode script of a code point number.
+ * uses code-point range tables instead of regex for performance.
  * @param cp the code point
  * @returns the detected script
  */

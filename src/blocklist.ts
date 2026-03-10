@@ -1,7 +1,7 @@
 // character blocklist for IDN safety checks.
 // ported from Chromium's idn_spoof_checker.cc blocklist + identifier status checks.
 
-import { Script, getScript } from './scripts.ts';
+import { Script, getScriptByCodePoint } from './scripts.ts';
 
 // #region blocklist ranges
 
@@ -85,12 +85,11 @@ const isInBlockedRanges = (cp: number): boolean => {
 };
 
 /**
- * checks if a character is blocked by the IDN safety blocklist.
- * @param ch the character to check (single code point as string)
+ * checks if a code point is blocked by the IDN safety blocklist.
  * @param cp the code point value
- * @returns true if the character is blocked
+ * @returns true if the code point is blocked
  */
-export const isBlocked = (ch: string, cp: number): boolean => {
+export const isBlocked = (cp: number): boolean => {
 	if (cp <= 0x7f) {
 		return false;
 	}
@@ -98,7 +97,7 @@ export const isBlocked = (ch: string, cp: number): boolean => {
 		return true;
 	}
 	// characters whose script is not in the allowed set are blocked
-	if (getScript(ch) === Script.Other) {
+	if (getScriptByCodePoint(cp) === Script.Other) {
 		return true;
 	}
 	return false;
