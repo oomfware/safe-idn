@@ -1,7 +1,7 @@
 import { topDomainNames } from './data/top-domains.ts';
 import { toUnicode } from './idna.ts';
 import { checkLabel } from './label-checker.ts';
-import type { LabelResult, SkeletonChecker } from './label-checker.ts';
+import type { LabelResult } from './label-checker.ts';
 import { skeletonStripDiacritics } from './skeleton.ts';
 
 // #region types
@@ -23,20 +23,19 @@ export type { LabelResult };
 const topDomainSkeletons = new Set(topDomainNames.map((d) => skeletonStripDiacritics(d)));
 
 /**
- * built-in skeleton checker that detects confusables by comparing
- * label skeletons against top domain skeletons.
+ * checks if a label's skeleton matches a top domain name.
+ * also handles ß variants (ß can visually spoof 'b', 's', or 'ss').
  */
-const defaultSkeletonChecker: SkeletonChecker = (label) => {
-	const skel = skeletonStripDiacritics(label);
+const labelMatchesTopDomain = (unicode: string): boolean => {
+	const skel = skeletonStripDiacritics(unicode);
 	if (topDomainSkeletons.has(skel)) {
 		return true;
 	}
 
-	// also check ß variants: ß can spoof 'b' (visual), 's', or 'ss'
-	if (label.includes('\u00df')) {
+	if (unicode.includes('\u00df')) {
 		const variants = ['b', 's', 'ss'];
 		for (const replacement of variants) {
-			const variant = label.replace(/\u00df/g, replacement);
+			const variant = unicode.replace(/\u00df/g, replacement);
 			if (topDomainSkeletons.has(skeletonStripDiacritics(variant))) {
 				return true;
 			}
@@ -44,6 +43,59 @@ const defaultSkeletonChecker: SkeletonChecker = (label) => {
 	}
 
 	return false;
+};
+
+/**
+ * applies skeleton-based top domain checks to labels.
+ * checks all non-TLD labels, but excludes subdomains of recognized
+ * top domains (if a later label also matches, the current label is
+ * a subdomain and should not be flagged).
+ *
+ * when the TLD is an IDN spoofing a common ASCII TLD, all labels
+ * are checked unconditionally (no subdomain exclusion).
+ */
+const applySkeletonChecks = (results: LabelResult[], tldIsSpoofed: boolean): void => {
+	// find the TLD index (last non-empty label)
+	let tldIdx = results.length - 1;
+	if (tldIdx >= 0 && results[tldIdx].unicode === '') {
+		tldIdx--;
+	}
+
+	for (let i = 0; i < results.length; i++) {
+		const r = results[i];
+
+		// skip labels that already failed or are the TLD
+		if (r.result !== 'safe' || i === tldIdx) {
+			continue;
+		}
+
+		// only check labels with non-ASCII content
+		if (!/[^\x00-\x7f]/.test(r.unicode)) {
+			continue;
+		}
+
+		if (!labelMatchesTopDomain(r.unicode)) {
+			continue;
+		}
+
+		if (!tldIsSpoofed) {
+			// subdomain exclusion: if a subsequent non-TLD label also matches
+			// a top domain, this label is a subdomain and should stay safe.
+			// e.g., éxample.test.net → éxample is a subdomain of test
+			let isSubdomain = false;
+			for (let j = i + 1; j < results.length && j !== tldIdx; j++) {
+				if (results[j].unicode !== '' && labelMatchesTopDomain(results[j].unicode)) {
+					isSubdomain = true;
+					break;
+				}
+			}
+			if (isSubdomain) {
+				continue;
+			}
+		}
+
+		results[i] = { input: r.input, unicode: r.unicode, result: 'unsafe' };
+	}
 };
 
 // #endregion
@@ -60,25 +112,6 @@ const extractTld = (labels: string[]): string => {
 	}
 	return labels[tldIdx].toLowerCase();
 };
-
-// known two-part public suffixes
-const twoPartSuffixes = new Set([
-	'co.uk',
-	'co.in',
-	'co.jp',
-	'co.kr',
-	'co.nz',
-	'co.za',
-	'com.au',
-	'com.br',
-	'com.cn',
-	'com.mx',
-	'com.tw',
-	'com.sg',
-	'org.uk',
-	'net.uk',
-	'ac.uk',
-]);
 
 // common ASCII TLDs — if an IDN TLD's skeleton matches one of these,
 // the domain might be spoofing a standard TLD
@@ -157,22 +190,6 @@ const isIdnTldSpoofingAscii = (tld: string): boolean => {
 	return commonAsciiTlds.has(skel);
 };
 
-const getRegistrableLabelIndex = (labels: string[]): number => {
-	const len = labels.length;
-	const end = len > 0 && labels[len - 1] === '' ? len - 1 : len;
-	if (end <= 1) {
-		return 0;
-	}
-
-	if (end >= 3) {
-		const suffix = `${labels[end - 2]}.${labels[end - 1]}`.toLowerCase();
-		if (twoPartSuffixes.has(suffix)) {
-			return end - 3;
-		}
-	}
-	return end - 2;
-};
-
 // #endregion
 
 // #region public API
@@ -181,6 +198,7 @@ const getRegistrableLabelIndex = (labels: string[]): number => {
  * checks domain safety and returns detailed per-label results.
  * each label is checked independently for script mixing, confusable characters,
  * and other safety issues following Chromium's IDN display algorithm.
+ * a second pass applies skeleton-based top domain matching to all non-TLD labels.
  *
  * @param domain the domain to check (may contain punycode labels)
  * @returns detailed check results including per-label verdicts
@@ -195,27 +213,21 @@ export const checkDomain = (domain: string): DomainCheckResult => {
 
 	const inputLabels = domain.split('.');
 	const tld = extractTld(inputLabels);
-	const registrableIdx = getRegistrableLabelIndex(inputLabels);
-
-	// check if TLD is an IDN that spoofs a standard ASCII TLD
 	const tldIsSpoofed = isIdnTldSpoofingAscii(tld);
 
+	// phase 1: per-label safety checks (script mixing, confusables, etc.)
 	const results: LabelResult[] = [];
 
-	for (let i = 0; i < inputLabels.length; i++) {
-		const label = inputLabels[i];
-
+	for (const label of inputLabels) {
 		if (label === '') {
 			results.push({ input: '', unicode: '', result: 'safe' });
 			continue;
 		}
-
-		// apply skeleton top-domain check to the registrable label,
-		// or to all non-ASCII labels when TLD is a spoofed IDN
-		const isRegistrable = i === registrableIdx;
-		const checker = isRegistrable || tldIsSpoofed ? defaultSkeletonChecker : undefined;
-		results.push(checkLabel(label, tld, checker));
+		results.push(checkLabel(label, tld));
 	}
+
+	// phase 2: skeleton-based top domain matching
+	applySkeletonChecks(results, tldIsSpoofed);
 
 	const displayParts = results.map((r) => {
 		if (r.result === 'safe') {

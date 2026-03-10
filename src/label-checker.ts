@@ -487,9 +487,6 @@ const isUnsafeDeviationChar = (cp: number): boolean => {
 
 // #region main label check
 
-/** callback for skeleton-based confusable checks. returns true if unsafe. */
-export type SkeletonChecker = (label: string, codePoints: number[], chars: string[], tld: string) => boolean;
-
 const getSingleScript = (scripts: Set<Script>): Script | null => {
 	if (scripts.size === 1) {
 		return scripts.values().next().value!;
@@ -497,12 +494,7 @@ const getSingleScript = (scripts: Set<Script>): Script | null => {
 	return null;
 };
 
-const runSafetyChecks = (
-	input: string,
-	unicode: string,
-	tld: string,
-	skeletonChecker?: SkeletonChecker,
-): LabelResult => {
+const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResult => {
 	const chars = [...unicode];
 	const codePoints = chars.map((ch) => ch.codePointAt(0)!);
 
@@ -665,17 +657,10 @@ const runSafetyChecks = (
 		return { input, unicode, result: 'unsafe' };
 	}
 
-	// skeleton-based checks (mixed-script confusables + top domain matching)
-	if (skeletonChecker) {
-		if (skeletonChecker(unicode, codePoints, chars, tld)) {
-			return { input, unicode, result: 'unsafe' };
-		}
-	}
-
 	return { input, unicode, result: 'safe' };
 };
 
-const checkPunycodeLabel = (label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult => {
+const checkPunycodeLabel = (label: string, tld: string): LabelResult => {
 	const result = toUnicode(label);
 
 	if (result.error) {
@@ -688,7 +673,7 @@ const checkPunycodeLabel = (label: string, tld: string, skeletonChecker?: Skelet
 		return { input: label, unicode, result: 'safe' };
 	}
 
-	return runSafetyChecks(label, unicode, tld, skeletonChecker);
+	return runSafetyChecks(label, unicode, tld);
 };
 
 /**
@@ -696,17 +681,16 @@ const checkPunycodeLabel = (label: string, tld: string, skeletonChecker?: Skelet
  *
  * @param label the raw label (may be punycode like "xn--...")
  * @param tld the top-level domain (ASCII form)
- * @param skeletonChecker optional skeleton-based confusable checker
  * @returns the label check result
  */
-export const checkLabel = (label: string, tld: string, skeletonChecker?: SkeletonChecker): LabelResult => {
+export const checkLabel = (label: string, tld: string): LabelResult => {
 	if (label === '' || !/[^\x00-\x7f]/.test(label)) {
 		if (label.startsWith('xn--')) {
-			return checkPunycodeLabel(label, tld, skeletonChecker);
+			return checkPunycodeLabel(label, tld);
 		}
 		return { input: label, unicode: label, result: 'safe' };
 	}
-	return runSafetyChecks(label, label, tld, skeletonChecker);
+	return runSafetyChecks(label, label, tld);
 };
 
 // #endregion
