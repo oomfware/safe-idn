@@ -211,7 +211,7 @@ async function main() {
 	const combiningMarkRe = /\p{M}/gu;
 	const filtered = sorted
 		.map(([cp, val]): [number, string] => [cp, val.replace(combiningMarkRe, '')])
-		.filter(([, val]) => val.length > 0 && [...val].every((ch) => ch.codePointAt(0)! <= 0x7f));
+		.filter(([, val]) => val.length > 0 && Array.from(val).every((ch) => ch.codePointAt(0)! <= 0x7f));
 
 	// compact encoding: separator-free base-46 VLQ for delta-encoded keys,
 	// pipe-delimited values. 92 safe printable ASCII chars are split into

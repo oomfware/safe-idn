@@ -1,6 +1,17 @@
 {
 	"$schema": "https://unpkg.com/oxlint/configuration_schema.json",
+	"options": {
+		"typeAware": true
+	},
 	"rules": {
 		"no-control-regex": "off"
-	}
+	},
+	"overrides": [
+		{
+			"files": ["*.test.ts"],
+			"rules": {
+				"typescript/no-floating-promises": "off"
+			}
+		}
+	]
 }

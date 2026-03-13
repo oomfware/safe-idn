@@ -365,7 +365,7 @@ const combiningMarkRe = /\p{M}/u;
 const hasRepeatedCombiningMarks = (labelText: string): boolean => {
 	// decompose to NFD to detect composed char + same combining mark
 	const nfd = labelText.normalize('NFD');
-	const chars = [...nfd];
+	const chars = Array.from(nfd);
 	for (let i = 1; i < chars.length; i++) {
 		if (combiningMarkRe.test(chars[i]) && combiningMarkRe.test(chars[i - 1])) {
 			if (chars[i] === chars[i - 1]) {
@@ -493,7 +493,7 @@ const getSingleScript = (scripts: Set<Script>): Script | null => {
 };
 
 const runSafetyChecks = (input: string, unicode: string, tld: string): LabelResult => {
-	const chars = [...unicode];
+	const chars = Array.from(unicode);
 	const codePoints = chars.map((ch) => ch.codePointAt(0)!);
 
 	// non-LDH ASCII check — characters outside [a-z0-9-] in a label with non-ASCII content.
