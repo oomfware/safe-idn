@@ -32,11 +32,11 @@
 		"prepublishOnly": "pnpm run build"
 	},
 	"devDependencies": {
-		"@types/node": "^25.3.0",
+		"@types/node": "^25.5.0",
 		"bumpp": "^10.4.1",
-		"oxfmt": "^0.35.0",
-		"oxlint": "^1.50.0",
-		"tsdown": "^0.20.3",
+		"oxfmt": "^0.40.0",
+		"oxlint": "^1.55.0",
+		"tsdown": "^0.21.2",
 		"typescript": "^5.9.3"
 	}
 }
