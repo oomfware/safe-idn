@@ -3,6 +3,11 @@
 	"options": {
 		"typeAware": true
 	},
+	"categories": {
+		"correctness": "warn",
+		"suspicious": "warn",
+		"perf": "warn"
+	},
 	"rules": {
 		"no-control-regex": "off"
 	},

@@ -201,6 +201,7 @@ async function main() {
 	}
 
 	// sort by code point for deterministic output
+	// oxlint-disable-next-line unicorn/no-array-sort
 	const sorted = [...map.entries()].sort((a, b) => a[0] - b[0]);
 
 	// filter to entries whose prototypes produce ASCII after stripping combining
