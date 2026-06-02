@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { topDomainNames } from './data/top-domains.ts';
 import { checkDomain } from './index.ts';
+import { skeletonStripDiacritics } from './skeleton.ts';
 
 function checkResult(domain: string, expectedUnicode?: string): Result {
 	const result = checkDomain(domain);
@@ -1100,6 +1102,25 @@ describe('IDN deviation characters', () => {
 				tc.expected,
 				`expected ${ResultName[tc.expected]} but got ${ResultName[actual]} for ${tc.input} (${tc.unicode})`,
 			);
+		});
+	}
+});
+
+describe('confusable data integrity', () => {
+	// the confusables map is pruned to the alphabet of top-domain skeletons (see
+	// scripts/generate-confusables.ts). a top domain whose skeleton uses a character
+	// outside that alphabet could rely on a pruned entry, silently weakening
+	// detection — so guard the invariant. if this fails, regenerate confusables.ts.
+	const bakedAlphabet = new Set('23456789Oabcdefghiklnopqrstuvwxyz');
+
+	for (const name of topDomainNames) {
+		test(`${name} skeleton stays within the pruned alphabet`, () => {
+			for (const ch of skeletonStripDiacritics(name)) {
+				assert.ok(
+					bakedAlphabet.has(ch),
+					`top domain "${name}" skeleton uses "${ch}" (U+${ch.codePointAt(0)!.toString(16)}) outside the baked confusable alphabet — regenerate src/data/confusables.ts`,
+				);
+			}
 		});
 	}
 });

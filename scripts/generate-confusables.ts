@@ -12,6 +12,8 @@ import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { topDomainNames } from '../src/data/top-domains.ts';
+
 const dir = dirname(fileURLToPath(import.meta.url));
 const OUTPUT = resolve(dir, '../src/data/confusables.ts');
 
@@ -214,6 +216,31 @@ async function main() {
 		.map(([cp, val]): [number, string] => [cp, val.replace(combiningMarkRe, '')])
 		.filter(([, val]) => val.length > 0 && Array.from(val).every((ch) => ch.codePointAt(0)! <= 0x7f));
 
+	// prune to entries that can actually contribute to a top-domain match.
+	// the runtime only flags a label when its skeleton equals a top-domain
+	// skeleton, so those skeletons define the only alphabet that can ever match.
+	// any entry whose (ASCII) prototype contains a character outside that alphabet
+	// injects a char no top domain has, so the label can never match — drop it.
+	// pruning a relevant entry is impossible: a top-domain skeleton is alphabet-only
+	// by construction, so it never depends on a dropped entry. NOTE: this couples the
+	// data to top-domains.ts; the guard test in index.test.ts fails loudly if a new
+	// top domain introduces a character outside the baked alphabet.
+	const skelStrip = (s: string, m: Map<number, string>): string => {
+		let out = '';
+		for (const ch of s.normalize('NFD')) {
+			out += m.get(ch.codePointAt(0)!) ?? ch;
+		}
+		return out.normalize('NFD').replace(combiningMarkRe, '');
+	};
+	const filteredMap = new Map(filtered);
+	const alphabet = new Set<string>();
+	for (const name of topDomainNames) {
+		for (const ch of skelStrip(name, filteredMap)) {
+			alphabet.add(ch);
+		}
+	}
+	const pruned = filtered.filter(([, val]) => Array.from(val).every((ch) => alphabet.has(ch)));
+
 	// compact encoding: separator-free base-46 VLQ for delta-encoded keys,
 	// pipe-delimited values. 92 safe printable ASCII chars are split into
 	// continuation (0-45) and terminal (46-91) halves, encoding each delta
@@ -221,7 +248,7 @@ async function main() {
 	let prev = 0;
 	let keyStr = '';
 	const values: string[] = [];
-	for (const [cp, target] of filtered) {
+	for (const [cp, target] of pruned) {
 		const delta = cp - prev;
 		keyStr += encodeVlq(delta - 1); // delta >= 1, encode delta-1
 		values.push(target);
@@ -240,7 +267,7 @@ async function main() {
 			const [val, nextJ] = decodeVlq(keyStr, j);
 			j = nextJ;
 			p += val + 1;
-			const expected = filtered[vi];
+			const expected = pruned[vi];
 			if (p !== expected[0]) {
 				throw new Error(`key mismatch at ${vi}: got ${p}, expected ${expected[0]}`);
 			}
@@ -249,8 +276,8 @@ async function main() {
 			}
 			vi++;
 		}
-		if (vi !== filtered.length) {
-			throw new Error(`entry count mismatch: decoded ${vi}, expected ${filtered.length}`);
+		if (vi !== pruned.length) {
+			throw new Error(`entry count mismatch: decoded ${vi}, expected ${pruned.length}`);
 		}
 		console.log(`round-trip verification passed`);
 	}
@@ -260,8 +287,10 @@ async function main() {
 	code += '//\n';
 	code += '// compact encoding: keys are delta-encoded using separator-free base-46 VLQ,\n';
 	code += '// values are pipe-delimited. filtered to ASCII-only prototypes (combining\n';
-	code += '// marks stripped) since the skeleton is only compared against ASCII top\n';
-	code += '// domain names. decoded at load time into a Map.\n\n';
+	code += '// marks stripped) and pruned to the top-domain skeleton alphabet, since the\n';
+	code += '// skeleton is only ever compared against the names in top-domains.ts.\n';
+	code += `// baked alphabet: ${JSON.stringify([...alphabet].toSorted().join(''))}.\n`;
+	code += '// decoded at load time into a Map.\n\n';
 
 	code += `const k = ${JSON.stringify(keyStr)};\n`;
 	code += `const v = ${JSON.stringify(valStr)};\n\n`;
@@ -293,7 +322,7 @@ async function main() {
 
 	writeFileSync(OUTPUT, code);
 	console.log(
-		`wrote ${filtered.length} entries (${keyStr.length + valStr.length} bytes packed, from ${sorted.length} total) to ${OUTPUT}`,
+		`wrote ${pruned.length} entries (${keyStr.length + valStr.length} bytes packed, from ${sorted.length} total) to ${OUTPUT}`,
 	);
 }
 
