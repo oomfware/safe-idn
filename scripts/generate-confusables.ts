@@ -12,8 +12,8 @@ import { writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const OUTPUT = resolve(__dirname, '../src/data/confusables.ts');
+const dir = dirname(fileURLToPath(import.meta.url));
+const OUTPUT = resolve(dir, '../src/data/confusables.ts');
 
 const CONFUSABLES_URL = 'https://unicode.org/Public/security/latest/confusables.txt';
 
