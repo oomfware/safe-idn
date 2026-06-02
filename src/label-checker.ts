@@ -476,7 +476,6 @@ const hasKanaConfusableMix = (codePoints: number[]): boolean => {
 // #region deviation characters
 
 // U+200C (ZWNJ) and U+200D (ZWJ) are deviation characters — always unsafe
-// U+00DF (ß) in combination with Latin-lookalike domains → skeleton check handles it
 const isUnsafeDeviationChar = (cp: number): boolean => {
 	return cp === 0x200c || cp === 0x200d;
 };

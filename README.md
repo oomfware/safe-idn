@@ -11,9 +11,17 @@ in their decoded Unicode form or keep them as punycode. showing Unicode uncondit
 phishing — for example, `xn--80ak6aa92e.com` decodes to `аррӏе.com`, which uses Cyrillic letters to
 impersonate `apple.com`.
 
-this library implements [Chromium's IDN display algorithm][chromium-idn] in TypeScript. it checks
-each label of a domain for script mixing, confusable characters, dangerous patterns, and other
-spoofing vectors, then returns either the safe Unicode form or the original punycode.
+this library implements the per-label checks from [Chromium's IDN display algorithm][chromium-idn]
+in TypeScript. it checks each label of a domain for script mixing, confusable characters, dangerous
+patterns, and other spoofing vectors, then returns either the safe Unicode form or the original
+punycode.
+
+it deliberately omits Chromium's skeleton matching against a list of popular domains. that approach
+requires bundling and maintaining an inherently incomplete brand list, so — like Firefox — this
+library relies on structural rules that protect every domain uniformly rather than a curated set.
+the whole-script confusable check still catches the dangerous invisible cases (e.g. all-Cyrillic
+`аррӏе`), so this remains stricter than Firefox on those. the trade-off is that same-script
+lookalikes of a specific brand (e.g. `googlé.com`) are treated as valid Unicode.
 
 [chromium-idn]: https://chromium.googlesource.com/chromium/src/+/main/docs/idn.md
 
@@ -59,13 +67,11 @@ each label result contains:
 
 ## what it checks
 
-the following safety checks are performed, matching Chromium's behavior:
+the following per-label safety checks are performed, matching Chromium's behavior:
 
 - **script mixing** — blocks unsafe combinations of Unicode scripts (e.g., Latin + Cyrillic)
 - **whole-script confusables** — detects labels where every character in a script has a Latin
   lookalike (e.g., Cyrillic "а" for Latin "a")
-- **skeleton confusables** — compares [UTS #39][uts39] skeletons against a list of top domains to
-  catch near-lookalikes
 - **character blocklist** — blocks characters known to cause confusion (symbols, ligatures, IPA
   extensions, etc.)
 - **dangerous patterns** — catches combining mark abuse, dot-after-i/j tricks, and RTL mark
@@ -75,6 +81,3 @@ the following safety checks are performed, matching Chromium's behavior:
 - **kana confusables** — catches Hiragana/Katakana interchange and context violations
 - **TLD-specific rules** — restricts characters like þ, ð, ə, and · to their appropriate TLDs
 - **deviation characters** — blocks ZWNJ and ZWJ
-- **IDN TLD spoofing** — detects punycode TLDs whose skeletons match common ASCII TLDs
-
-[uts39]: https://www.unicode.org/reports/tr39/
