@@ -5,7 +5,7 @@
 	"license": "0BSD",
 	"repository": {
 		"type": "git",
-		"url": "https://codeberg.org/oomfware/safe-idn"
+		"url": "https://tangled.org/did:plc:uzwby5agqrf5qsrwpgqh4hzk"
 	},
 	"files": [
 		"dist/",
